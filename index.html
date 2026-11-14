@@ -78,6 +78,7 @@
       <button id="stText" class="btn step" type="button"><b>١</b><span>النص</span></button>
       <button id="stAudio" class="btn step" type="button"><b>٢</b><span>الصوت</span></button>
       <button id="stVideo" class="btn step" type="button"><b>٣</b><span>الفيديو</span></button>
+      <button id="stPub" class="btn step" type="button"><b>٤</b><span>النشر</span></button>
     </div>
     <div class="steps two">
       <button id="stAll" class="btn primary" type="button">⚡ أنشئ كل شيء</button>
@@ -92,6 +93,23 @@
       <button id="dlVideo" class="btn ok" type="button">⬇ تنزيل الفيديو</button>
       <button id="dlAudio" class="btn ghost" type="button">⬇ الصوت</button>
       <button id="dlText" class="btn ghost" type="button">⬇ النص</button>
+    </div>
+
+    <div class="card" id="publishBox" hidden>
+      <h3>📣 نصوص النشر</h3>
+      <div class="pub">
+        <div class="seg-h"><span>تيك توك — الوصف</span><span class="tag" id="cntTk"></span><button class="mini" type="button" data-copy="pubTk">نسخ</button></div>
+        <textarea id="pubTk" rows="6" dir="rtl" spellcheck="false"></textarea>
+      </div>
+      <div class="pub">
+        <div class="seg-h"><span>يوتيوب Shorts — العنوان</span><span class="tag" id="cntTitle"></span><button class="mini" type="button" data-copy="pubTitle">نسخ</button></div>
+        <textarea id="pubTitle" rows="2" dir="rtl" spellcheck="false"></textarea>
+      </div>
+      <div class="pub">
+        <div class="seg-h"><span>يوتيوب Shorts — الوصف</span><span class="tag" id="cntDesc"></span><button class="mini" type="button" data-copy="pubDesc">نسخ</button></div>
+        <textarea id="pubDesc" rows="7" dir="rtl" spellcheck="false"></textarea>
+      </div>
+      <div class="muted">تُحفظ تعديلاتك تلقائياً. اضغط «٤ النشر» لإعادة التوليد.</div>
     </div>
 
     <details id="scriptBox" class="card" hidden>
@@ -164,6 +182,26 @@
           <option value="vertical">طولي 9:16 — تيك توك / ريلز</option>
           <option value="horizontal">عرضي 16:9 — يوتيوب</option>
         </select></label>
+    </div>
+
+    <div class="card">
+      <h3>🟩 مقطع البداية (خلفية خضراء)</h3>
+      <p class="muted">مقطع طريف قصير (حتى 15 ثانية) بخلفية خضراء مصمتة. يزيل التطبيق الخلفية ويعرضه بملء الشاشة فوق الخريطة، ولا تبدأ النشرة حتى ينتهي. صوت المقطع يدخل في الفيديو.</p>
+      <label class="chk"><input id="introEnabled" type="checkbox"> تشغيل مقطع البداية في كل فيديو</label>
+      <label>اختر مقطعاً (MP4 أو WebM)<input id="clipFile" type="file" accept="video/*"></label>
+      <div id="clipInfo" class="muted"></div>
+      <div id="clipTools" hidden>
+        <canvas id="clipPrev" class="clip-prev" width="360" height="640"></canvas>
+        <label>حساسية إزالة الأخضر <span class="muted">(ارفعها إذا بقي أخضر في الخلفية، واخفضها إذا اختفى جزء من الشخصية)</span>
+          <input id="chromaSim" type="range" min="0.02" max="0.5" step="0.01"></label>
+        <label>نعومة الحواف<input id="chromaSmooth" type="range" min="0.01" max="0.4" step="0.01"></label>
+        <label>إزالة انعكاس الأخضر على الشخصية<input id="chromaDespill" type="range" min="0" max="1" step="0.05"></label>
+        <div class="row wrap">
+          <button id="btnClipPrev" class="btn ghost" type="button">▶ معاينة</button>
+          <button id="btnClipReset" class="btn ghost" type="button">القيم الافتراضية</button>
+          <button id="btnClipDel" class="btn danger" type="button">حذف المقطع</button>
+        </div>
+      </div>
     </div>
 
     <div class="card">
