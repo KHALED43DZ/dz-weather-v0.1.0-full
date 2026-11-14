@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>نشرة الطقس · الجزائر</title>
+<meta name="description" content="نشرة طقس الجزائر بالدارجة: خريطة متحركة وصوت وفيديو جاهز للنشر">
+<meta name="theme-color" content="#2F6DB0">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <img src="icons/icon-192.png" alt="" width="42" height="42">
+    <div>
+      <h1>نشرة الطقس · الجزائر</h1>
+      <small id="todayLine"></small>
+    </div>
+  </div>
+  <button id="btnSettings" class="gear" type="button" aria-label="الإعدادات">
+    <span class="gear-ico">⚙️</span>
+    <span class="ver" id="verBadge">v0.0.0</span>
+  </button>
+</header>
+
+<main>
+  <!-- الصفحة الرئيسية -->
+  <section id="home">
+    <div id="keyBanner" class="banner" hidden>
+      لم تُضف مفاتيح Gemini بعد. افتح <b>⚙️ الإعدادات</b> وألصق مفاتيحك (مفتاح في كل سطر).
+    </div>
+    <h2 class="sec">اختر يوم النشرة</h2>
+    <div id="days" class="days"></div>
+    <div class="legend">
+      <span class="lg s0">لم تُنشأ</span><span class="lg s1">نص</span><span class="lg s2">صوت</span><span class="lg s3">فيديو</span>
+    </div>
+    <div class="card small">
+      <div class="row">
+        <div>
+          <b>بيانات الطقس</b>
+          <div id="wxInfo" class="muted">—</div>
+        </div>
+        <button id="btnWx" class="btn ghost" type="button">تحديث</button>
+      </div>
+    </div>
+    <div class="card small" id="installCard" hidden>
+      <div class="row">
+        <div><b>ثبّت التطبيق</b><div class="muted">ليعمل كتطبيق مستقل على هاتفك</div></div>
+        <button id="btnInstall" class="btn" type="button">تثبيت</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- صفحة النشرة -->
+  <section id="detail" hidden>
+    <div class="dhead">
+      <button id="btnBack" class="btn ghost" type="button">→ رجوع</button>
+      <div>
+        <h2 id="dTitle">—</h2>
+        <small id="dSub" class="muted"></small>
+      </div>
+    </div>
+
+    <div class="stage">
+      <canvas id="cv" width="720" height="1280"></canvas>
+    </div>
+
+    <div class="progress"><i id="bar"></i></div>
+    <div id="status" class="status">جاهز</div>
+
+    <div class="steps">
+      <button id="stText" class="btn step" type="button"><b>١</b><span>النص</span></button>
+      <button id="stAudio" class="btn step" type="button"><b>٢</b><span>الصوت</span></button>
+      <button id="stVideo" class="btn step" type="button"><b>٣</b><span>الفيديو</span></button>
+    </div>
+    <div class="steps two">
+      <button id="stAll" class="btn primary" type="button">⚡ أنشئ كل شيء</button>
+      <button id="stCancel" class="btn danger" type="button" hidden>⏹ إيقاف</button>
+    </div>
+    <div class="steps two">
+      <button id="btnPlay" class="btn ghost" type="button">▶ معاينة</button>
+      <button id="btnStopPlay" class="btn ghost" type="button" hidden>⏹ إيقاف المعاينة</button>
+    </div>
+
+    <div class="downloads" id="downloads" hidden>
+      <button id="dlVideo" class="btn ok" type="button">⬇ تنزيل الفيديو</button>
+      <button id="dlAudio" class="btn ghost" type="button">⬇ الصوت</button>
+      <button id="dlText" class="btn ghost" type="button">⬇ النص</button>
+    </div>
+
+    <details id="scriptBox" class="card" hidden>
+      <summary>عرض وتعديل نص النشرة</summary>
+      <div id="scriptList"></div>
+    </details>
+  </section>
+</main>
+
+<!-- الإعدادات -->
+<div id="settings" class="sheet" hidden>
+  <div class="sheet-in">
+    <div class="sheet-head">
+      <button id="btnCloseSettings" class="btn ghost" type="button">✕ إغلاق</button>
+      <h2>الإعدادات</h2>
+      <span class="verpill" id="verPill">v0.0.0</span>
+    </div>
+
+    <div class="card">
+      <h3>🔑 مفاتيح تحليل النص (Gemini)</h3>
+      <p class="muted">كل مفتاح في سطر. عند بلوغ حدّ الاستعمال ينتقل التطبيق تلقائياً للمفتاح التالي. الأفضل أن تكون من مشاريع Google مختلفة لأن الحصة المجانية مرتبطة بالمشروع.</p>
+      <textarea id="keysAnalysis" rows="4" dir="ltr" spellcheck="false" autocomplete="off" placeholder="AIza...&#10;AIza..."></textarea>
+      <div class="muted" id="cntAnalysis"></div>
+    </div>
+
+    <div class="card">
+      <h3>🔊 مفاتيح توليد الصوت (Gemini TTS)</h3>
+      <textarea id="keysTts" rows="4" dir="ltr" spellcheck="false" autocomplete="off" placeholder="AIza...&#10;AIza..."></textarea>
+      <div class="muted" id="cntTts"></div>
+      <div class="row wrap">
+        <button id="btnCopyKeys" class="btn ghost" type="button">نسخ مفاتيح التحليل إلى الصوت</button>
+        <button id="btnTestKeys" class="btn ghost" type="button">فحص المفاتيح</button>
+      </div>
+      <div id="keyTestOut" class="muted"></div>
+    </div>
+
+    <div class="card">
+      <h3>🧠 نموذج التحليل وكتابة النص</h3>
+      <label>النموذج الأساسي<select id="selAnalysis"></select></label>
+      <label>نموذج احتياطي (إذا تعذّر الأساسي)<select id="selAnalysisFb"></select></label>
+      <label>معرّف نموذج مخصّص (اختياري — يُستعمل بدل الأساسي)
+        <input id="customAnalysis" dir="ltr" placeholder="gemini-..." spellcheck="false"></label>
+      <div id="noteAnalysis" class="muted"></div>
+    </div>
+
+    <div class="card">
+      <h3>🎙 نموذج الصوت</h3>
+      <label>النموذج الأساسي<select id="selTts"></select></label>
+      <label>نموذج احتياطي<select id="selTtsFb"></select></label>
+      <label>معرّف نموذج مخصّص (اختياري)
+        <input id="customTts" dir="ltr" placeholder="gemini-...-tts" spellcheck="false"></label>
+      <label>صوت المذيع<select id="selVoice"></select></label>
+      <label>وصف النبرة (يُرسل مع النص إلى نموذج الصوت)
+        <textarea id="stylePrompt" rows="3" dir="ltr" spellcheck="false"></textarea></label>
+      <label>الانتظار بين كل مقطع صوتي (ثوانٍ) — ارفعه إذا ظهرت أخطاء حدّ الاستعمال
+        <input id="ttsDelay" type="number" min="0" max="60" step="1"></label>
+      <div id="noteTts" class="muted"></div>
+      <div class="row wrap">
+        <button id="btnVoiceTest" class="btn ghost" type="button">▶ جرّب الصوت بالدارجة</button>
+      </div>
+      <div id="voiceTestOut" class="muted"></div>
+    </div>
+
+    <div class="card">
+      <h3>🎬 النشرة والفيديو</h3>
+      <label>اسم المذيع<input id="presenter" placeholder="عمي الطقس"></label>
+      <label>طول النشرة<select id="selLength"></select></label>
+      <label>شكل الفيديو
+        <select id="selOrient">
+          <option value="vertical">طولي 9:16 — تيك توك / ريلز</option>
+          <option value="horizontal">عرضي 16:9 — يوتيوب</option>
+        </select></label>
+    </div>
+
+    <div class="card">
+      <h3>🛠 التطبيق</h3>
+      <div class="row wrap">
+        <button id="btnUpdate" class="btn ghost" type="button">التحقق من التحديث</button>
+        <button id="btnWipe" class="btn danger" type="button">حذف النشرات المحفوظة</button>
+      </div>
+      <div id="appInfo" class="muted"></div>
+    </div>
+
+    <button id="btnSave" class="btn primary wide" type="button">💾 حفظ الإعدادات</button>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
