@@ -349,6 +349,7 @@ export class Scene {
     // الرأس
     this.header(st);
     // المذيع والتعليق
+    if (st.intro) return; // أثناء مقطع البداية: الخريطة والعنوان فقط
     this.caption(st, region);
     const pname = st.presenter || 'عمي الطقس';
     drawPresenter(ctx, L.pres.x, L.pres.y, L.pres.r, st.level || 0, t, pname, u, !L.vertical);

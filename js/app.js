@@ -12,6 +12,8 @@ import { parseKeys, generateScript, generateSpeech, testKeys, resetKeyState } fr
 import { AudioEngine, concatWavs } from './audio.js';
 import { Scene } from './mapview.js';
 import { Player } from './player.js';
+import { ChromaClip, CHROMA_DEFAULTS } from './chroma.js';
+import { buildPublishPrompt, parsePublish } from './publish.js';
 
 const $ = (id) => document.getElementById(id);
 const S = {
@@ -134,9 +136,10 @@ function refreshDetail() {
   set('stText', stage >= 1, b);
   set('stAudio', stage >= 2, b || stage < 1);
   set('stVideo', stage >= 3, b || stage < 2);
+  set('stPub', !!(rec && rec.publish), b || stage < 1);
   $('stAudio').querySelector('span').textContent = stage === 1 && audio > 0 ? `الصوت ${audio}/${total}` : 'الصوت';
   $('stAll').disabled = b;
-  $('stAll').textContent = stage === 3 ? '✓ النشرة جاهزة' : '⚡ أنشئ كل شيء';
+  $('stAll').textContent = stage === 3 && rec && rec.publish ? '✓ النشرة جاهزة' : '⚡ أنشئ كل شيء';
   $('stCancel').hidden = !b;
   $('btnPlay').disabled = b || S.playing || stage < 2;
   $('btnPlay').hidden = S.playing;
@@ -147,6 +150,7 @@ function refreshDetail() {
   if (rec && rec.video) $('dlVideo').textContent = `⬇ الفيديو (${ltr(fmtSize(rec.video.size))})`;
   else $('dlVideo').textContent = '⬇ تنزيل الفيديو';
   $('scriptBox').hidden = !(rec && rec.script);
+  renderPublish();
 }
 
 /* رسم الحالة الساكنة (قبل التشغيل) */
@@ -334,8 +338,10 @@ async function stepVideo(signal) {
   setScene();
   setStatus('تجهيز الصوت والمشهد…'); setProgress(0);
   S.playing = true; refreshDetail();
+  let clip = null;
   try {
-    const tl = await S.player.prepare({ rec, dayFull: S.cur.full, presenter: S.settings.presenter || 'عمي الطقس' });
+    clip = await loadClip();
+    const tl = await S.player.prepare({ rec, dayFull: S.cur.full, presenter: S.settings.presenter || 'عمي الطقس', clip });
     const out = await S.player.play({
       record: true, signal,
       onProgress: (f, t) => { setProgress(f); setStatus(`⏺ تسجيل الفيديو ${ltr(fmtDur(t) + ' / ' + fmtDur(tl.total))} — أبقِ الشاشة مفتوحة ولا تغادر الصفحة`); },
@@ -343,8 +349,9 @@ async function stepVideo(signal) {
     rec.video = out;
     await DB.putB(rec);
     setProgress(1);
-    setStatus(`✓ الفيديو جاهز — المدة ${ltr(fmtDur(out.duration))} — الحجم ${ltr(fmtSize(out.size))} — الصيغة ${ltr(extOf(out.mime).toUpperCase())}`);
-  } finally { S.playing = false; }
+    if (out.clipError) toast('تعذّر تشغيل مقطع البداية: ' + out.clipError, 5000);
+    setStatus(`✓ الفيديو جاهز${out.clip ? ' (مع مقطع البداية)' : ''} — المدة ${ltr(fmtDur(out.duration))} — الحجم ${ltr(fmtSize(out.size))} — الصيغة ${ltr(extOf(out.mime).toUpperCase())}`);
+  } finally { S.playing = false; if (clip) clip.dispose(); }
 }
 
 async function stepAll(signal) {
@@ -353,6 +360,92 @@ async function stepAll(signal) {
   const { stage } = stageOf(rec);
   if (stage < 2) await stepAudio(signal);
   if (stageOf(curRec()).stage === 2) await stepVideo(signal);
+  rec = curRec();
+  if (rec && rec.video && !rec.publish) {
+    try { await stepPublish(signal); } catch (e) {
+      if (e && e.name === 'AbortError') throw e;
+      setStatus('✓ الفيديو جاهز — لكن تعذّر توليد نصوص النشر: ' + e.message + ' (اضغط «٤ النشر» لإعادة المحاولة)', true);
+    }
+  }
+}
+
+/* ───────── مقطع البداية ───────── */
+async function loadClip() {
+  const st = (S.settings = getSettings());
+  if (!st.introEnabled) return null;
+  let asset = null;
+  try { asset = await DB.getAsset('introClip'); } catch { /* ignore */ }
+  if (!asset || !asset.blob) return null;
+  try {
+    await S.audio.init();
+    const clip = new ChromaClip(asset.blob, {
+      audioEngine: S.audio,
+      params: { sim: +st.chromaSim, smooth: +st.chromaSmooth, despill: +st.chromaDespill },
+    });
+    await clip.load();
+    return clip;
+  } catch (e) { toast('تعذّر استعمال مقطع البداية: ' + e.message, 5000); return null; }
+}
+
+/* ───────── نصوص النشر ───────── */
+async function stepPublish(signal) {
+  const rec = curRec();
+  if (!rec || !rec.script) throw new Error('ولّد النص أولاً');
+  const st = (S.settings = getSettings());
+  const keys = parseKeys(st.analysisKeys);
+  if (!keys.length) throw new Error('أضف مفاتيح التحليل من الإعدادات');
+  setProgress(0.3); setStatus('كتابة نصوص النشر (تيك توك ويوتيوب Shorts)…');
+  const { system, user } = buildPublishPrompt({
+    dateFull: S.cur.full, headline: rec.script.headline, script: rec.script, summary: summarize(rec.snap),
+  });
+  const models = [st.customAnalysis.trim() || st.analysisModel, st.analysisFallback];
+  let pub = null, res = null, lastErr = null;
+  for (let attempt = 0; attempt < 2 && !pub; attempt++) {
+    res = await generateScript({ keys, models, system, user, onStatus: (m) => setStatus(m), signal });
+    try { pub = parsePublish(res.text); } catch (e) { lastErr = e; }
+  }
+  if (!pub) throw lastErr;
+  rec.publish = { ...pub, model: res.model, at: Date.now() };
+  await DB.putB(rec);
+  setProgress(1); setStatus(`✓ نصوص النشر جاهزة — النموذج ${ltr(res.model)}`);
+  refreshDetail();
+}
+
+function updatePubCounts() {
+  $('cntTk').textContent = `${$('pubTk').value.length} حرف`;
+  $('cntTitle').textContent = `${$('pubTitle').value.length}/100`;
+  $('cntDesc').textContent = `${$('pubDesc').value.length} حرف`;
+}
+
+function renderPublish() {
+  const rec = curRec();
+  const p = rec && rec.publish;
+  $('publishBox').hidden = !p;
+  if (!p) return;
+  const act = document.activeElement;
+  if (act !== $('pubTk')) $('pubTk').value = p.tiktok;
+  if (act !== $('pubTitle')) $('pubTitle').value = p.title;
+  if (act !== $('pubDesc')) $('pubDesc').value = p.description;
+  updatePubCounts();
+}
+
+async function onPubEdit() {
+  const rec = curRec();
+  if (!rec || !rec.publish) return;
+  rec.publish.tiktok = $('pubTk').value;
+  rec.publish.title = $('pubTitle').value.replace(/\s+/g, ' ').trim();
+  rec.publish.description = $('pubDesc').value;
+  updatePubCounts();
+  try { await DB.putB(rec); } catch { /* ignore */ }
+}
+
+async function copyText(txt) {
+  try { await navigator.clipboard.writeText(txt); toast('✓ تم النسخ'); } catch {
+    const ta = document.createElement('textarea');
+    ta.value = txt; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); toast('✓ تم النسخ'); } catch { toast('تعذّر النسخ'); }
+    ta.remove();
+  }
 }
 
 async function previewPlay() {
@@ -360,12 +453,14 @@ async function previewPlay() {
   if (!rec || stageOf(rec).stage < 2 || S.playing) return;
   setScene();
   S.playing = true; S.busy = false; refreshDetail();
+  let clip = null;
   try {
-    const tl = await S.player.prepare({ rec, dayFull: S.cur.full, presenter: S.settings.presenter || 'عمي الطقس' });
+    clip = await loadClip();
+    const tl = await S.player.prepare({ rec, dayFull: S.cur.full, presenter: S.settings.presenter || 'عمي الطقس', clip });
     setStatus('▶ معاينة…');
     await S.player.play({ record: false, onProgress: (f, t) => { setProgress(f); $('status').textContent = `▶ معاينة ${ltr(fmtDur(t) + ' / ' + fmtDur(tl.total))}`; } });
     setStatus('انتهت المعاينة'); setProgress(0);
-  } catch (e) { setStatus('✗ ' + e.message, true); } finally { S.playing = false; refreshDetail(); }
+  } catch (e) { setStatus('✗ ' + e.message, true); } finally { S.playing = false; if (clip) clip.dispose(); refreshDetail(); }
 }
 function stopPreview() { if (S.playing && S.player) S.player.stop(); }
 
@@ -384,7 +479,11 @@ async function dlAudio() {
 function dlText() {
   const rec = curRec();
   if (!rec) return;
-  const txt = [rec.script.headline, S.cur.full, '', ...itemsOf(rec.script).map((it) => `[${itemLabel(it)}]\n${it.text}`)].join('\n\n');
+  const parts = [rec.script.headline, S.cur.full, '', ...itemsOf(rec.script).map((it) => `[${itemLabel(it)}]\n${it.text}`)];
+  if (rec.publish) {
+    parts.push('────────', '[تيك توك — الوصف]\n' + rec.publish.tiktok, '[يوتيوب Shorts — العنوان]\n' + rec.publish.title, '[يوتيوب Shorts — الوصف]\n' + rec.publish.description);
+  }
+  const txt = parts.join('\n\n');
   download(new Blob([txt], { type: 'text/plain;charset=utf-8' }), `dz-weather-${S.cur.iso}.txt`);
 }
 
@@ -436,6 +535,9 @@ function openSettings() {
   sl.innerHTML = Object.entries(LENGTHS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
   sl.value = s.length;
   $('selOrient').value = s.orientation;
+  $('introEnabled').checked = !!s.introEnabled;
+  $('chromaSim').value = s.chromaSim; $('chromaSmooth').value = s.chromaSmooth; $('chromaDespill').value = s.chromaDespill;
+  refreshClipInfo();
   $('appInfo').textContent = `الإصدار ${VERSION} · ${BUILD_DATE}`;
   $('keyTestOut').textContent = ''; $('voiceTestOut').textContent = '';
   updateCounts(); updateNotes();
@@ -444,7 +546,7 @@ function openSettings() {
   document.body.style.overflow = 'hidden';
 }
 
-function closeSettings() { $('settings').hidden = true; document.body.style.overflow = ''; }
+function closeSettings() { stopClipPreview(); $('settings').hidden = true; document.body.style.overflow = ''; }
 
 function saveFromForm() {
   S.settings = saveSettings({
@@ -462,6 +564,10 @@ function saveFromForm() {
     presenter: $('presenter').value.trim() || 'عمي الطقس',
     length: $('selLength').value,
     orientation: $('selOrient').value,
+    introEnabled: $('introEnabled').checked,
+    chromaSim: +$('chromaSim').value,
+    chromaSmooth: +$('chromaSmooth').value,
+    chromaDespill: +$('chromaDespill').value,
   });
   resetKeyState();
   if (S.scene) setScene();
@@ -507,6 +613,79 @@ async function onVoiceTest() {
   btn.disabled = false;
 }
 
+/* ───────── إدارة مقطع البداية في الإعدادات ───────── */
+let prevClip = null, prevRaf = 0;
+const chromaForm = () => ({ sim: +$('chromaSim').value, smooth: +$('chromaSmooth').value, despill: +$('chromaDespill').value });
+
+function stopClipPreview() {
+  cancelAnimationFrame(prevRaf);
+  if (prevClip) { prevClip.dispose(); prevClip = null; }
+  const b = $('btnClipPrev'); if (b) b.textContent = '▶ معاينة';
+}
+
+async function refreshClipInfo() {
+  stopClipPreview();
+  let a = null;
+  try { a = await DB.getAsset('introClip'); } catch { /* ignore */ }
+  $('clipInfo').textContent = a
+    ? `${a.name} — المدة ${ltr(fmtDur(a.duration))} — الحجم ${ltr(fmtSize(a.size))}`
+    : 'لا يوجد مقطع. ارفع مقطعاً بخلفية خضراء مصمتة.';
+  $('clipTools').hidden = !a;
+}
+
+async function onClipFile(file) {
+  if (!file) return;
+  if (!/^video\//.test(file.type) && !/\.(mp4|webm|mov|m4v)$/i.test(file.name)) { toast('اختر ملف فيديو'); return; }
+  if (file.size > 60 * 1048576) { toast('الملف كبير — الحد الأقصى 60 ميغابايت'); return; }
+  $('clipInfo').textContent = 'جاري الفحص…';
+  let clip = null;
+  try {
+    clip = new ChromaClip(file, { muted: true });
+    await clip.load();
+    if (clip.duration > 15) throw new Error('المقطع طويل — الحد الأقصى 15 ثانية');
+    await DB.putAsset({ id: 'introClip', blob: file, name: file.name, size: file.size, duration: clip.duration, type: file.type, at: Date.now() });
+    toast(clip.autoKey ? '✓ حُفظ المقطع (اكتُشف لون الخلفية تلقائياً)' : '✓ حُفظ المقطع (لم يُكتشف أخضر واضح في الحواف — راجع المعاينة)', 4500);
+  } catch (e) { toast(e.message, 5000); } finally { if (clip) clip.dispose(); }
+  await refreshClipInfo();
+}
+
+async function toggleClipPreview() {
+  if (prevClip) { stopClipPreview(); return; }
+  let a = null;
+  try { a = await DB.getAsset('introClip'); } catch { /* ignore */ }
+  if (!a) return;
+  const clip = new ChromaClip(a.blob, { muted: true, params: chromaForm() });
+  try { await clip.load(); } catch (e) { toast(e.message, 5000); clip.dispose(); return; }
+  prevClip = clip;
+  $('btnClipPrev').textContent = '⏹ إيقاف';
+  const cv = $('clipPrev');
+  const vertical = $('selOrient').value !== 'horizontal';
+  cv.width = vertical ? 360 : 640; cv.height = vertical ? 640 : 360;
+  const ctx = cv.getContext('2d');
+  await clip.seek(0); clip.play().catch(() => {});
+  const loop = () => {
+    if (prevClip !== clip) return;
+    const g = ctx.createLinearGradient(0, 0, 0, cv.height);
+    g.addColorStop(0, '#0B3556'); g.addColorStop(1, '#2E8DB5');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, cv.width, cv.height);
+    clip.setParams(chromaForm());
+    clip.drawTo(ctx, cv.width, cv.height);
+    if (clip.video.ended) { clip.seek(0).then(() => clip.play().catch(() => {})); }
+    prevRaf = requestAnimationFrame(loop);
+  };
+  loop();
+}
+
+async function onClipDel() {
+  if (!confirm('حذف مقطع البداية المحفوظ؟')) return;
+  try { await DB.delAsset('introClip'); } catch { /* ignore */ }
+  await refreshClipInfo(); toast('تم الحذف');
+}
+
+function resetChroma() {
+  $('chromaSim').value = CHROMA_DEFAULTS.sim; $('chromaSmooth').value = CHROMA_DEFAULTS.smooth; $('chromaDespill').value = CHROMA_DEFAULTS.despill;
+}
+
 async function onUpdate() {
   const info = $('appInfo');
   if (!('serviceWorker' in navigator)) { info.textContent = 'المتصفح لا يدعم التحديث التلقائي'; return; }
@@ -549,6 +728,16 @@ function bind() {
   $('btnWipe').addEventListener('click', onWipe);
   $('btnWx').addEventListener('click', refreshWx);
 
+  $('clipFile').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; onClipFile(f); });
+  $('btnClipPrev').addEventListener('click', toggleClipPreview);
+  $('btnClipDel').addEventListener('click', onClipDel);
+  $('btnClipReset').addEventListener('click', resetChroma);
+  $('stPub').addEventListener('click', () => run(stepPublish));
+  for (const id of ['pubTk', 'pubTitle', 'pubDesc']) {
+    $(id).addEventListener('input', updatePubCounts);
+    $(id).addEventListener('change', onPubEdit);
+  }
+  document.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', () => copyText($(b.dataset.copy).value)));
   $('btnBack').addEventListener('click', closeDay);
   $('stText').addEventListener('click', () => run(stepText));
   $('stAudio').addEventListener('click', () => run(stepAudio));
