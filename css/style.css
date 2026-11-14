@@ -111,7 +111,7 @@ main { max-width: 640px; margin: 0 auto; padding: 14px 14px 40px; }
 .progress i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--sun), var(--ok)); transition: width .25s; }
 .status { min-height: 1.6em; font-size: .9rem; color: var(--blue-d); }
 .status.err { color: var(--bad); font-weight: 700; }
-.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
 .steps.two { grid-template-columns: 1fr 1fr; }
 .steps.two > :only-child { grid-column: 1 / -1; }
 .step { display: flex; flex-direction: column; align-items: center; gap: 0; padding: 8px 4px; line-height: 1.3; background: #fff; color: var(--blue-d); }
@@ -126,6 +126,19 @@ main { max-width: 640px; margin: 0 auto; padding: 14px 14px 40px; }
 .seg-h .tag { color: var(--muted); font-weight: 400; font-size: .8rem; }
 .mini { font: inherit; font-size: .8rem; padding: 4px 10px; min-height: 32px; border-radius: 10px; border: 1.5px solid var(--blue); background: #fff; color: var(--blue-d); cursor: pointer; }
 .mini.has { background: #D4F4DE; border-color: var(--ok); color: #1c7a42; }
+
+/* نصوص النشر */
+.pub { margin-top: 10px; }
+.pub .seg-h { gap: 6px; }
+.pub .seg-h > span:first-child { flex: 1; }
+.pub textarea { font-family: inherit; font-size: .92rem; line-height: 1.7; }
+
+/* مقطع البداية */
+label.chk { display: flex; align-items: center; gap: 8px; }
+label.chk input { width: auto; margin: 0; display: inline-block; }
+input[type=range] { padding: 0; accent-color: var(--blue); }
+input[type=file] { padding: 8px; font-size: .85rem; }
+.clip-prev { display: block; width: 100%; max-width: 240px; margin: 10px auto; border-radius: 14px; background: #0B3556; }
 
 /* الإعدادات */
 .sheet { position: fixed; inset: 0; z-index: 50; background: rgba(10, 30, 55, .55); overflow-y: auto; -webkit-overflow-scrolling: touch; }
