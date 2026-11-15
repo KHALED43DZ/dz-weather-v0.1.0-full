@@ -3,7 +3,7 @@ import { itemsOf } from './bulletin.js';
 import { sleep } from './util.js';
 import { summarize } from './weather.js';
 
-const LEAD = 0.9, GAP = 0.4, TAIL = 1.6, CAM = 1.6, CLIP_PAD = 0.35;
+const LEAD = 0.9, GAP = 0.4, TAIL = 1.6, CAM = 1.6;
 
 export function pickMime() {
   if (typeof MediaRecorder === 'undefined') return null;
@@ -20,12 +20,10 @@ export class Player {
     this.tl = null; this.running = false; this.raf = 0;
   }
 
-  // clip: ChromaClip اختياري — تبدأ النشرة بعد انتهائه
-  async prepare({ rec, dayFull, presenter, clip = null }) {
+  async prepare({ rec, dayFull, presenter }) {
     await this.audio.init();
     const items = itemsOf(rec.script);
-    const clipDur = clip ? clip.duration : 0;
-    let t = clip ? clipDur + CLIP_PAD : LEAD;
+    let t = LEAD;
     const out = [];
     let prevCam = this.scene.camFor('all');
     for (const it of items) {
@@ -38,7 +36,7 @@ export class Player {
       t += buf.duration + GAP;
     }
     this.tl = {
-      items: out, total: t - GAP + TAIL, dayFull, presenter, clip, clipDur,
+      items: out, total: t - GAP + TAIL, dayFull, presenter,
       headline: rec.script.headline, snap: rec.snap, summary: summarize(rec.snap),
       full: this.scene.camFor('all'),
     };
@@ -47,9 +45,8 @@ export class Player {
 
   state(t, level = 0) {
     const tl = this.tl;
-    const intro = !!tl.clip && t < tl.clipDur + CLIP_PAD * 0.5;
     let cur = null;
-    if (!intro) for (const it of tl.items) if (t >= it.start - GAP) cur = it;
+    for (const it of tl.items) if (t >= it.start - GAP) cur = it;
     let cam = tl.full, item = null, itemT = 0;
     if (cur) {
       const k = ease((t - (cur.start - GAP)) / CAM);
@@ -64,7 +61,7 @@ export class Player {
     }
     const speaking = item && t >= item.start && t <= item.end;
     return {
-      t, cam, level: speaking ? level : 0, item, itemT, intro,
+      t, cam, level: speaking ? level : 0, item, itemT,
       region: item ? item.region : 'all', headline: tl.headline, dateFull: tl.dayFull,
       snap: tl.snap, summary: tl.summary, presenter: tl.presenter,
     };
@@ -72,34 +69,21 @@ export class Player {
 
   drawAt(t) { this.scene.draw(this.state(t, 0)); }
 
-  // رسم إطار معيّن مع مقطع البداية (للاختبار والمعاينة الساكنة)
-  async drawAtWithClip(t) {
-    const tl = this.tl;
-    if (tl.clip && t < tl.clipDur) await tl.clip.seek(t);
-    this.scene.draw(this.state(t, 0));
-    if (tl.clip && t < tl.clipDur) tl.clip.drawTo(this.scene.ctx, this.scene.W, this.scene.H);
-  }
-
   stop() {
     this.running = false;
     this.audio.stopAll();
     cancelAnimationFrame(this.raf);
-    if (this.tl && this.tl.clip) this.tl.clip.pause();
   }
 
   // تشغيل (ومعه تسجيل اختياري). يُرجع {blob,mime,duration} عند التسجيل
   async play({ record = false, onProgress = () => {}, signal } = {}) {
     const tl = this.tl;
     const { audio, scene } = this;
-    const clip = tl.clip;
     await audio.init();
     this.running = true;
-    let recorder = null, recStarted = false, clipStarted = false;
-    const chunks = [];
-    let mime = '', stopped = null;
+    let recorder = null, chunks = [], mime = '', stopped = null;
     let wake = null;
     try { if (navigator.wakeLock) wake = await navigator.wakeLock.request('screen'); } catch { /* optional */ }
-    if (clip) await clip.seek(0);
     if (record) {
       mime = pickMime();
       if (mime === null) throw new Error('متصفحك لا يدعم تسجيل الفيديو (MediaRecorder)');
@@ -113,24 +97,17 @@ export class Player {
     }
     const t0 = audio.ctx.currentTime + 0.35;
     for (const it of tl.items) audio.schedule(it.buf, t0 + it.start);
+    if (recorder) recorder.start(500);
 
     let aborted = false;
     const onAbort = () => { aborted = true; this.stop(); };
     if (signal) signal.addEventListener('abort', onAbort, { once: true });
 
-    let clipErr = null;
     await new Promise((resolve) => {
       const tick = () => {
         if (!this.running) return resolve();
-        const raw = audio.ctx.currentTime - t0;
-        const t = Math.max(0, raw);
-        if (recorder && !recStarted && raw >= -0.05) { recorder.start(500); recStarted = true; }
-        if (clip && !clipStarted && raw >= 0) {
-          clipStarted = true;
-          clip.play().catch((e) => { clipErr = e; });
-        }
+        const t = Math.max(0, audio.ctx.currentTime - t0);
         scene.draw(this.state(t, audio.level()));
-        if (clip && t < tl.clipDur + 0.05 && clipStarted) clip.drawTo(scene.ctx, scene.W, scene.H);
         onProgress(Math.min(1, t / tl.total), t);
         if (t >= tl.total) { this.running = false; return resolve(); }
         this.raf = requestAnimationFrame(tick);
@@ -141,7 +118,6 @@ export class Player {
     if (wake) { try { wake.release(); } catch { /* ignore */ } }
     this.running = false;
     audio.stopAll();
-    if (clip) clip.pause();
     this.drawAt(tl.total);
     if (!recorder) return null;
     await sleep(250);
@@ -151,6 +127,6 @@ export class Player {
     const type = (mime || 'video/webm').split(';')[0];
     const blob = new Blob(chunks, { type });
     if (!blob.size) throw new Error('فشل التسجيل: الملف فارغ');
-    return { blob, mime: type, duration: tl.total, size: blob.size, clip: !!clip, clipError: clipErr ? clipErr.message : '' };
+    return { blob, mime: type, duration: tl.total, size: blob.size };
   }
 }

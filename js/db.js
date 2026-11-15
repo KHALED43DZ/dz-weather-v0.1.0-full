@@ -1,7 +1,7 @@
-// تخزين محلي في IndexedDB: النشرات (النص + الصوت + الفيديو) والملفات الثابتة (مقطع البداية)
+// تخزين محلي في IndexedDB: النشرات (النص + الصوت + الفيديو) وملفات ثابتة (متجر 'assets' محجوز للاستعمال المستقبلي)
 const DB_NAME = 'dzweather';
 const STORE = 'bulletins';
-const ASSETS = 'assets';
+const ASSETS = 'assets'; // يبقى (الإصدار 2) كي لا يفشل فتح قاعدة بيانات أُنشئت سابقاً
 let dbp = null;
 
 function open() {
@@ -46,7 +46,7 @@ export async function purgeOld(keepFromIso) {
   for (const r of all) if (r.id < keepFromIso) await delB(r.id);
 }
 
-// حذف النشرات فقط (مقطع البداية يبقى)
+// حذف كل النشرات المحفوظة
 export async function wipeAll() {
   const all = await allB();
   for (const r of all) await delB(r.id);

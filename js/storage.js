@@ -18,10 +18,6 @@ export const DEFAULTS = {
   orientation: 'vertical',
   ttsDelay: 2,
   presenter: 'عمي الطقس',
-  introEnabled: true,
-  chromaSim: 0.18,
-  chromaSmooth: 0.12,
-  chromaDespill: 0.8,
 };
 
 export function getSettings() {
