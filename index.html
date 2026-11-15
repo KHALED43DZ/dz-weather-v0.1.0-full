@@ -185,26 +185,6 @@
     </div>
 
     <div class="card">
-      <h3>🟩 مقطع البداية (خلفية خضراء)</h3>
-      <p class="muted">مقطع طريف قصير (حتى 15 ثانية) بخلفية خضراء مصمتة. يزيل التطبيق الخلفية ويعرضه بملء الشاشة فوق الخريطة، ولا تبدأ النشرة حتى ينتهي. صوت المقطع يدخل في الفيديو.</p>
-      <label class="chk"><input id="introEnabled" type="checkbox"> تشغيل مقطع البداية في كل فيديو</label>
-      <label>اختر مقطعاً (MP4 أو WebM)<input id="clipFile" type="file" accept="video/*"></label>
-      <div id="clipInfo" class="muted"></div>
-      <div id="clipTools" hidden>
-        <canvas id="clipPrev" class="clip-prev" width="360" height="640"></canvas>
-        <label>حساسية إزالة الأخضر <span class="muted">(ارفعها إذا بقي أخضر في الخلفية، واخفضها إذا اختفى جزء من الشخصية)</span>
-          <input id="chromaSim" type="range" min="0.02" max="0.5" step="0.01"></label>
-        <label>نعومة الحواف<input id="chromaSmooth" type="range" min="0.01" max="0.4" step="0.01"></label>
-        <label>إزالة انعكاس الأخضر على الشخصية<input id="chromaDespill" type="range" min="0" max="1" step="0.05"></label>
-        <div class="row wrap">
-          <button id="btnClipPrev" class="btn ghost" type="button">▶ معاينة</button>
-          <button id="btnClipReset" class="btn ghost" type="button">القيم الافتراضية</button>
-          <button id="btnClipDel" class="btn danger" type="button">حذف المقطع</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
       <h3>🛠 التطبيق</h3>
       <div class="row wrap">
         <button id="btnUpdate" class="btn ghost" type="button">التحقق من التحديث</button>

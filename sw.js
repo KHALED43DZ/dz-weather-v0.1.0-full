@@ -1,11 +1,11 @@
 // Service Worker — يخزّن ملفات التطبيق ليعمل دون اتصال.
 // غيّر VERSION مع كل إصدار (نفس الرقم في js/config.js)
-const VERSION = '0.2.1';
+const VERSION = '0.2.2';
 const CACHE = 'dzweather-' + VERSION;
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/app.js', 'js/config.js', 'js/util.js', 'js/storage.js', 'js/db.js', 'js/wilayas.js', 'js/outline.js',
-  'js/weather.js', 'js/prompt.js', 'js/bulletin.js', 'js/audio.js', 'js/gemini.js', 'js/mapview.js', 'js/player.js', 'js/chroma.js', 'js/publish.js', 'js/mp4fix.js',
+  'js/weather.js', 'js/prompt.js', 'js/bulletin.js', 'js/audio.js', 'js/gemini.js', 'js/mapview.js', 'js/player.js', 'js/publish.js', 'js/mp4fix.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png',
 ];
 
