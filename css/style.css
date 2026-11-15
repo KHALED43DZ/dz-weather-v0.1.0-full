@@ -133,13 +133,6 @@ main { max-width: 640px; margin: 0 auto; padding: 14px 14px 40px; }
 .pub .seg-h > span:first-child { flex: 1; }
 .pub textarea { font-family: inherit; font-size: .92rem; line-height: 1.7; }
 
-/* مقطع البداية */
-label.chk { display: flex; align-items: center; gap: 8px; }
-label.chk input { width: auto; margin: 0; display: inline-block; }
-input[type=range] { padding: 0; accent-color: var(--blue); }
-input[type=file] { padding: 8px; font-size: .85rem; }
-.clip-prev { display: block; width: 100%; max-width: 240px; margin: 10px auto; border-radius: 14px; background: #0B3556; }
-
 /* الإعدادات */
 .sheet { position: fixed; inset: 0; z-index: 50; background: rgba(10, 30, 55, .55); overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .sheet-in { max-width: 640px; margin: 0 auto; min-height: 100%; background: var(--bg); padding: calc(10px + env(safe-area-inset-top)) 14px 40px; }
