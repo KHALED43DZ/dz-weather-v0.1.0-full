@@ -1,5 +1,5 @@
 // ثوابت التطبيق — غيّر VERSION عند كل تحديث (وانسخه أيضاً إلى sw.js)
-export const VERSION = '0.2.0';
+export const VERSION = '0.2.1';
 export const BUILD_DATE = '2026-11-14';
 export const APP_TITLE = 'نشرة الطقس · الجزائر';
 

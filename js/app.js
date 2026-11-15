@@ -14,6 +14,7 @@ import { Scene } from './mapview.js';
 import { Player } from './player.js';
 import { ChromaClip, CHROMA_DEFAULTS } from './chroma.js';
 import { buildPublishPrompt, parsePublish } from './publish.js';
+import { defragmentMp4 } from './mp4fix.js';
 
 const $ = (id) => document.getElementById(id);
 const S = {
@@ -346,11 +347,12 @@ async function stepVideo(signal) {
       record: true, signal,
       onProgress: (f, t) => { setProgress(f); setStatus(`⏺ تسجيل الفيديو ${ltr(fmtDur(t) + ' / ' + fmtDur(tl.total))} — أبقِ الشاشة مفتوحة ولا تغادر الصفحة`); },
     });
-    rec.video = out;
+    rec.video = await fixVideo(out);
+    if (rec.video.fixError) toast('تعذّر تحويل الملف إلى صيغة قياسية: ' + rec.video.fixError, 6000);
     await DB.putB(rec);
     setProgress(1);
     if (out.clipError) toast('تعذّر تشغيل مقطع البداية: ' + out.clipError, 5000);
-    setStatus(`✓ الفيديو جاهز${out.clip ? ' (مع مقطع البداية)' : ''} — المدة ${ltr(fmtDur(out.duration))} — الحجم ${ltr(fmtSize(out.size))} — الصيغة ${ltr(extOf(out.mime).toUpperCase())}`);
+    setStatus(`✓ الفيديو جاهز${out.clip ? ' (مع مقطع البداية)' : ''} — المدة ${ltr(fmtDur(out.duration))} — الحجم ${ltr(fmtSize(rec.video.size))} — الصيغة ${ltr(extOf(out.mime).toUpperCase())}`);
   } finally { S.playing = false; if (clip) clip.dispose(); }
 }
 
@@ -465,9 +467,27 @@ async function previewPlay() {
 function stopPreview() { if (S.playing && S.player) S.player.stop(); }
 
 /* ───────── التنزيلات ───────── */
+// MediaRecorder يُنتج MP4 مجزَّأ (fragmented) بلا مدة في الترويسة، فتقرأ فيسبوك أول جزء فقط (~3 ثوانٍ).
+// نحوّله إلى MP4 عادي دون إعادة ترميز.
+async function fixVideo(v) {
+  if (!v || !/mp4/.test(v.mime) || v.fixed) return v;
+  try {
+    const r = await defragmentMp4(v.blob);
+    return r ? { ...v, blob: r.blob, size: r.blob.size, fixed: true } : { ...v, fixed: true };
+  } catch (e) { console.warn('remux', e); return { ...v, fixError: e.message }; }
+}
+
 async function dlVideo() {
   const rec = curRec();
   if (!rec || !rec.video) return;
+  if (/mp4/.test(rec.video.mime) && !rec.video.fixed) {
+    toast('جاري تجهيز الملف للنشر…');
+    rec.video = await fixVideo(rec.video);
+    try { await DB.putB(rec); } catch { /* ignore */ }
+    refreshDetail();
+  } else if (!/mp4/.test(rec.video.mime)) {
+    toast('الفيديو بصيغة WebM وقد لا يقبله فيسبوك. استعمل Chrome على أندرويد للحصول على MP4.', 6000);
+  }
   download(rec.video.blob, `dz-weather-${S.cur.iso}.${extOf(rec.video.mime)}`);
 }
 async function dlAudio() {
