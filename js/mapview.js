@@ -37,7 +37,8 @@ export function layout(W, H) {
     return {
       u, vertical: true,
       header: { x: 0, y: 0, w: W, h: 170 * u },
-      view: { x: 0, y: 170 * u, w: W, h: H - 170 * u - 300 * u },
+      view: { x: 0, y: 170 * u, w: W, h: H - 170 * u - 20 * u },
+      reserve: { w: 0, h: 290 * u },
       caption: { x: 30 * u, y: H - 250 * u, w: W - 60 * u, h: 220 * u },
       pres: { x: 105 * u, y: H - 352 * u, r: 66 * u },
       font: 33 * u, maxLines: 5, bustH: 300 * u,
@@ -46,7 +47,8 @@ export function layout(W, H) {
   return {
     u, vertical: false,
     header: { x: 0, y: 0, w: W, h: 100 * u },
-    view: { x: 0, y: 100 * u, w: W - 440 * u, h: H - 100 * u },
+    view: { x: 0, y: 100 * u, w: W, h: H - 100 * u },
+    reserve: { w: 440 * u, h: 0 },
     caption: { x: W - 430 * u, y: 385 * u, w: 410 * u, h: H - 405 * u },
     pres: { x: W - 225 * u, y: 245 * u, r: 90 * u },
     font: 27 * u, maxLines: 7, bustH: 292 * u,
@@ -294,8 +296,11 @@ export class Scene {
     const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
     const w = Math.max(x1 - x0, region === 'all' ? 0 : 6.5);
     const h = Math.max(y1 - y0, region === 'all' ? 0 : 5.5);
-    const s = Math.min((L.view.w * 0.94) / w, (L.view.h * 0.94) / h);
-    return { cx, cy, s: Math.min(s, 120 * u) };
+    // الخريطة العامة (مقدمة/خاتمة): نترك مكاناً للوحة المعلق
+    const rw = region === 'all' ? L.reserve.w : 0, rh = region === 'all' ? L.reserve.h : 0;
+    const s = Math.min(((L.view.w - rw) * 0.94) / w, ((L.view.h - rh) * 0.94) / h);
+    const ss = Math.min(s, 120 * u);
+    return { cx: cx + rw / 2 / ss, cy: cy + rh / 2 / ss, s: ss };
   }
 
   lerpCam(a, b, k) {
@@ -404,7 +409,21 @@ export class Scene {
     // الرأس
     this.header(st);
     // لوحة المذيع (بلا نص تعليق)
-    this.panel(st, region, t);
+    const show = !st.item || st.item.kind !== 'seg';
+    const dt = Math.min(0.1, Math.max(0, t - (this._pt ?? t))); this._pt = t;
+    let pv = this._pv ?? (show ? 1 : 0);
+    pv += ((show ? 1 : 0) - pv) * Math.min(1, dt * 7);
+    if (Math.abs((show ? 1 : 0) - pv) < 0.01) pv = show ? 1 : 0;
+    this._pv = pv;
+    if (pv > 0.01) {
+      ctx.save();
+      const e = ease(pv), c = L.caption;
+      if (L.vertical) ctx.translate(0, (1 - e) * (c.h + 140 * u)); else ctx.translate((1 - e) * (c.w + 60 * u), 0);
+      ctx.globalAlpha = e;
+      this.panel(st, region, t);
+      ctx.restore();
+    }
+    this.regionChip(region);
   }
 
   particles(cat, t) {
@@ -550,6 +569,19 @@ export class Scene {
     ctx.fillText(`${st.dateFull || ''}`, mid, h.h * (L.vertical ? 0.72 : 0.78));
   }
 
+  regionChip(region) {
+    const { ctx, L } = this;
+    if (!region || region === 'all' || !REGIONS[region]) return;
+    const u = L.u, v = L.view;
+    ctx.save();
+    ctx.font = `bold ${26 * u}px ${FONT}`; ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const lab = REGIONS[region].ar, w = ctx.measureText(lab).width + 44 * u, h = 44 * u;
+    const x = v.x + v.w / 2 - w / 2, y = v.y + v.h - h - 16 * u;
+    ctx.fillStyle = '#F2B400'; rrect(ctx, x, y, w, h, h / 2); ctx.fill();
+    ctx.fillStyle = '#10243d'; ctx.fillText(lab, x + w / 2, y + h / 2 + 2 * u);
+    ctx.restore();
+  }
+
   panel(st, region, t) {
     const { ctx, L } = this;
     const u = L.u, c = L.caption;
@@ -585,15 +617,6 @@ export class Scene {
       const cw = ctx.measureText(pname).width + 30 * u;
       ctx.fillStyle = '#C62828'; rrect(ctx, c.x + 18 * u, c.y - 16 * u, cw, 34 * u, 17 * u); ctx.fill();
       ctx.fillStyle = '#fff'; ctx.fillText(pname, c.x + 18 * u + cw / 2, c.y + 2 * u);
-    }
-    // وسم المنطقة
-    if (region && region !== 'all' && REGIONS[region]) {
-      ctx.font = `bold ${21 * u}px ${FONT}`;
-      const lab = REGIONS[region].ar;
-      const w = ctx.measureText(lab).width + 30 * u;
-      ctx.fillStyle = '#F2B400';
-      rrect(ctx, c.x + c.w - w - 18 * u, c.y - 16 * u, w, 34 * u, 17 * u); ctx.fill();
-      ctx.fillStyle = '#10243d'; ctx.fillText(lab, c.x + c.w - w / 2 - 18 * u, c.y + 2 * u);
     }
     ctx.restore();
   }
