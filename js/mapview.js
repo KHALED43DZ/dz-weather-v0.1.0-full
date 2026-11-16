@@ -37,10 +37,10 @@ export function layout(W, H) {
     return {
       u, vertical: true,
       header: { x: 0, y: 0, w: W, h: 170 * u },
-      view: { x: 0, y: 170 * u, w: W, h: H - 170 * u - 400 * u },
-      caption: { x: 30 * u, y: H - 330 * u, w: W - 60 * u, h: 290 * u },
+      view: { x: 0, y: 170 * u, w: W, h: H - 170 * u - 300 * u },
+      caption: { x: 30 * u, y: H - 250 * u, w: W - 60 * u, h: 220 * u },
       pres: { x: 105 * u, y: H - 352 * u, r: 66 * u },
-      font: 33 * u, maxLines: 5,
+      font: 33 * u, maxLines: 5, bustH: 300 * u,
     };
   }
   return {
@@ -49,7 +49,7 @@ export function layout(W, H) {
     view: { x: 0, y: 100 * u, w: W - 440 * u, h: H - 100 * u },
     caption: { x: W - 430 * u, y: 385 * u, w: 410 * u, h: H - 405 * u },
     pres: { x: W - 225 * u, y: 245 * u, r: 90 * u },
-    font: 27 * u, maxLines: 7,
+    font: 27 * u, maxLines: 7, bustH: 292 * u,
   };
 }
 
@@ -135,6 +135,61 @@ export function drawIcon(ctx, cat, x, y, r, t) {
     }
     default: break;
   }
+  ctx.restore();
+}
+
+
+// ===== المعلق بالصور: 12 شكل فم × (عينان مفتوحتان / مغمضتان) =====
+const BUST_N = 12, BUST_W = 340, BUST_H = 262;
+const bustImgs = { o: [], c: [] };
+let bustOk = false;
+export const bustReady = (async () => {
+  if (typeof Image === 'undefined') return false;
+  try {
+    const jobs = [];
+    for (const tag of ['o', 'c']) for (let i = 0; i < BUST_N; i++) {
+      jobs.push(new Promise((res, rej) => {
+        const im = new Image();
+        im.onload = () => { bustImgs[tag][i] = im; res(); };
+        im.onerror = () => rej(new Error('presenter image'));
+        im.src = `presenter/${tag}${String(i).padStart(2, '0')}.webp`;
+      }));
+    }
+    await Promise.all(jobs);
+    bustOk = true;
+  } catch { bustOk = false; }
+  return bustOk;
+})();
+
+// يختار رقم إطار الفم من شدة الصوت (مع تنعيم وتثبيت لمنع الارتجاف)
+function bustFrame(sc, level, t) {
+  const dt = Math.min(0.1, Math.max(0, t - (sc._bt ?? t)));
+  sc._bt = t;
+  if (dt === 0 && t < (sc._btPrev ?? -1)) sc._lv = 0;
+  sc._btPrev = t;
+  let lv = sc._lv || 0;
+  lv += (level - lv) * Math.min(1, dt * (level > lv ? 28 : 9));
+  sc._lv = lv;
+  const x = clamp(lv * 1.35, 0, 1) * (BUST_N - 1);
+  let f = sc._bf ?? 0;
+  if (Math.abs(x - f) > 0.65) f = Math.round(x);
+  if (level < 0.02 && lv < 0.03) f = 0;
+  sc._bf = f;
+  return f;
+}
+
+function drawBust(sc, ctx, c, h, level, t, bottom) {
+  const f = bustFrame(sc, level, t);
+  const blink = (t % 3.6) < 0.16 || ((t + 1.7) % 7.3) < 0.14;
+  const im = bustImgs[blink ? 'c' : 'o'][f];
+  const w = h * BUST_W / BUST_H;
+  const cx = c.x + c.w / 2;
+  ctx.save();
+  ctx.translate(cx, bottom);
+  ctx.rotate(Math.sin(t * 1.1) * 0.012);
+  ctx.scale(1 + Math.sin(t * 2.1) * 0.006, 1 + Math.sin(t * 2.1) * 0.01 + level * 0.008);
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(im, -w / 2, -h, w, h);
   ctx.restore();
 }
 
@@ -348,16 +403,8 @@ export class Scene {
 
     // الرأس
     this.header(st);
-    // المذيع والتعليق
-    this.caption(st, region);
-    const pname = st.presenter || 'عمي الطقس';
-    drawPresenter(ctx, L.pres.x, L.pres.y, L.pres.r, st.level || 0, t, pname, u, !L.vertical);
-    if (L.vertical) {
-      ctx.font = `bold ${21 * u}px ${FONT}`; ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      const cw = ctx.measureText(pname).width + 30 * u, cx0 = L.pres.x + L.pres.r * 1.5;
-      ctx.fillStyle = '#C62828'; rrect(ctx, cx0, L.caption.y - 16 * u, cw, 34 * u, 17 * u); ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.fillText(pname, cx0 + cw / 2, L.caption.y + 2 * u);
-    }
+    // لوحة المذيع (بلا نص تعليق)
+    this.panel(st, region, t);
   }
 
   particles(cat, t) {
@@ -503,25 +550,42 @@ export class Scene {
     ctx.fillText(`${st.dateFull || ''}`, mid, h.h * (L.vertical ? 0.72 : 0.78));
   }
 
-  caption(st, region) {
+  panel(st, region, t) {
     const { ctx, L } = this;
     const u = L.u, c = L.caption;
+    const pname = st.presenter || 'عمي الطقس';
+    const level = st.level || 0;
     ctx.save();
     ctx.fillStyle = 'rgba(6,24,46,0.9)'; ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 2 * u;
     rrect(ctx, c.x, c.y, c.w, c.h, 26 * u); ctx.fill(); ctx.stroke();
-    const text = (st.item && st.item.text) || st.captionText || '';
-    const font = `${L.font}px ${FONT}`;
-    ctx.font = font; ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const lines = this.lines(text, font, c.w - 52 * u);
-    const per = L.maxLines;
-    const pages = Math.max(1, Math.ceil(lines.length / per));
-    const prog = st.item ? clamp(st.item.progress, 0, 0.999) : 0;
-    const page = Math.min(pages - 1, Math.floor(prog * pages));
-    const shown = lines.slice(page * per, page * per + per);
-    const lh = L.font * 1.5;
-    const top = c.y + c.h / 2 - (shown.length * lh) / 2 + lh / 2 + 6 * u;
-    ctx.fillStyle = '#fff';
-    shown.forEach((ln, i) => ctx.fillText(ln, c.x + c.w / 2, top + i * lh));
+    ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const bottom = c.y + c.h - 3 * u;
+    if (bustOk) {
+      // المعلق يخرج من اللوحة إلى الأعلى
+      ctx.save();
+      const rr = 26 * u, bx1 = c.x + c.w, by1 = c.y + c.h;
+      ctx.beginPath(); ctx.moveTo(c.x, 0); ctx.lineTo(bx1, 0); ctx.lineTo(bx1, by1 - rr);
+      ctx.arcTo(bx1, by1, bx1 - rr, by1, rr); ctx.lineTo(c.x + rr, by1); ctx.arcTo(c.x, by1, c.x, by1 - rr, rr); ctx.closePath(); ctx.clip();
+      const bh = L.bustH, bw = bh * BUST_W / BUST_H;
+      const area = L.vertical ? { x: c.x, w: bw + 60 * u } : c;
+      drawBust(this, ctx, area, bh, level, t, bottom);
+      ctx.restore();
+    } else {
+      drawPresenter(ctx, L.vertical ? c.x + 110 * u : c.x + c.w / 2, c.y + c.h / 2, L.vertical ? 66 * u : 90 * u, level, t, pname, u, false);
+    }
+    // الاسم
+    if (L.vertical) {
+      const rx = c.x + c.w - 130 * u;
+      ctx.fillStyle = 'rgba(255,255,255,0.65)'; ctx.font = `${22 * u}px ${FONT}`;
+      ctx.fillText('يقدّم لكم النشرة', rx, c.y + c.h * 0.36);
+      ctx.fillStyle = '#FFD166'; ctx.font = `bold ${40 * u}px ${FONT}`;
+      ctx.fillText(pname, rx, c.y + c.h * 0.58);
+    } else {
+      ctx.font = `bold ${21 * u}px ${FONT}`;
+      const cw = ctx.measureText(pname).width + 30 * u;
+      ctx.fillStyle = '#C62828'; rrect(ctx, c.x + 18 * u, c.y - 16 * u, cw, 34 * u, 17 * u); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.fillText(pname, c.x + 18 * u + cw / 2, c.y + 2 * u);
+    }
     // وسم المنطقة
     if (region && region !== 'all' && REGIONS[region]) {
       ctx.font = `bold ${21 * u}px ${FONT}`;
@@ -530,14 +594,6 @@ export class Scene {
       ctx.fillStyle = '#F2B400';
       rrect(ctx, c.x + c.w - w - 18 * u, c.y - 16 * u, w, 34 * u, 17 * u); ctx.fill();
       ctx.fillStyle = '#10243d'; ctx.fillText(lab, c.x + c.w - w / 2 - 18 * u, c.y + 2 * u);
-    }
-    // شريط التقدم
-    if (pages > 1) {
-      const bw = (c.w - 80 * u) / pages;
-      for (let i = 0; i < pages; i++) {
-        ctx.fillStyle = i === page ? '#F2B400' : 'rgba(255,255,255,0.25)';
-        rrect(ctx, c.x + 40 * u + i * bw + 3 * u, c.y + c.h - 16 * u, bw - 6 * u, 6 * u, 3 * u); ctx.fill();
-      }
     }
     ctx.restore();
   }

@@ -1,4 +1,4 @@
-import { ease } from './mapview.js';
+import { ease, bustReady } from './mapview.js';
 import { itemsOf } from './bulletin.js';
 import { sleep } from './util.js';
 import { summarize } from './weather.js';
@@ -22,6 +22,7 @@ export class Player {
 
   async prepare({ rec, dayFull, presenter }) {
     await this.audio.init();
+    await bustReady;
     const items = itemsOf(rec.script);
     let t = LEAD;
     const out = [];
