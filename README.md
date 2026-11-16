@@ -29,7 +29,8 @@ js/prompt.js          بناء الطلب وتحليل ردّ النموذج
 js/weather.js         Open-Meteo وتلخيص المناطق
 js/wilayas.js         الولايات الـ58 والمناطق العشر
 js/outline.js         حدود الخريطة المبسّطة
-js/mapview.js         رسم الخريطة والمذيع والتعليق على canvas
+js/mapview.js         رسم الخريطة ولوحة المعلق (صور الفم) على canvas
+presenter/            24 صورة للمعلق: o00–o11 عينان مفتوحتان، c00–c11 مغمضتان (من الفم المغلق إلى الأكثر انفتاحاً)
 js/player.js          المشغّل + تسجيل الفيديو (MediaRecorder)
 js/mp4fix.js          تحويل MP4 المجزَّأ إلى MP4 عادي (لقبوله في فيسبوك)
 js/publish.js         نصوص تيك توك ويوتيوب Shorts
