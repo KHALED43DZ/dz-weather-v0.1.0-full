@@ -1,12 +1,12 @@
 // Service Worker — يخزّن ملفات التطبيق ليعمل دون اتصال.
 // غيّر VERSION مع كل إصدار (نفس الرقم في js/config.js)
-const VERSION = '0.3.1';
+const VERSION = '0.3.2';
 const CACHE = 'dzweather-' + VERSION;
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/app.js', 'js/config.js', 'js/util.js', 'js/storage.js', 'js/db.js', 'js/wilayas.js', 'js/outline.js',
   'js/weather.js', 'js/prompt.js', 'js/bulletin.js', 'js/audio.js', 'js/gemini.js', 'js/mapview.js', 'js/player.js', 'js/publish.js', 'js/mp4fix.js',
-  'presenter/o00.webp', 'presenter/o01.webp', 'presenter/o02.webp', 'presenter/o03.webp', 'presenter/o04.webp', 'presenter/o05.webp', 'presenter/o06.webp', 'presenter/o07.webp', 'presenter/o08.webp', 'presenter/o09.webp', 'presenter/o10.webp', 'presenter/o11.webp', 'presenter/c00.webp', 'presenter/c01.webp', 'presenter/c02.webp', 'presenter/c03.webp', 'presenter/c04.webp', 'presenter/c05.webp', 'presenter/c06.webp', 'presenter/c07.webp', 'presenter/c08.webp', 'presenter/c09.webp', 'presenter/c10.webp', 'presenter/c11.webp',
+  'presenter/o00.webp', 'presenter/o01.webp', 'presenter/o02.webp', 'presenter/o03.webp', 'presenter/o04.webp', 'presenter/o05.webp', 'presenter/o06.webp', 'presenter/o07.webp', 'presenter/o08.webp', 'presenter/o09.webp', 'presenter/o10.webp', 'presenter/o11.webp',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png',
 ];
 
