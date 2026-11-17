@@ -41,7 +41,7 @@ export function layout(W, H) {
       reserve: { w: 0, h: 290 * u },
       caption: { x: 30 * u, y: H - 250 * u, w: W - 60 * u, h: 220 * u },
       pres: { x: 105 * u, y: H - 352 * u, r: 66 * u },
-      font: 33 * u, maxLines: 5, bustH: 300 * u,
+      font: 33 * u, maxLines: 5, bustH: 280 * u,
     };
   }
   return {
@@ -51,7 +51,7 @@ export function layout(W, H) {
     reserve: { w: 440 * u, h: 0 },
     caption: { x: W - 430 * u, y: 385 * u, w: 410 * u, h: H - 405 * u },
     pres: { x: W - 225 * u, y: 245 * u, r: 90 * u },
-    font: 27 * u, maxLines: 7, bustH: 292 * u,
+    font: 27 * u, maxLines: 7, bustH: 300 * u,
   };
 }
 
@@ -142,23 +142,34 @@ export function drawIcon(ctx, cat, x, y, r, t) {
 
 
 // ===== المعلق بالصور: 12 شكل فم × (عينان مفتوحتان / مغمضتان) =====
-const BUST_N = 12, BUST_W = 340, BUST_H = 262;
+const BUST_N = 12, BUST_W = 300, BUST_H = 280;
 const bustImgs = { o: [], c: [] };
 let bustOk = false;
 export const bustReady = (async () => {
   if (typeof Image === 'undefined') return false;
   try {
     const jobs = [];
-    for (const tag of ['o', 'c']) for (let i = 0; i < BUST_N; i++) {
+    for (let i = 0; i < BUST_N; i++) {
       jobs.push(new Promise((res, rej) => {
         const im = new Image();
-        im.onload = () => { bustImgs[tag][i] = im; res(); };
+        im.onload = () => { bustImgs.o[i] = im; res(); };
         im.onerror = () => rej(new Error('presenter image'));
-        im.src = `presenter/${tag}${String(i).padStart(2, '0')}.webp`;
+        im.src = `presenter/o${String(i).padStart(2, '0')}.webp`;
       }));
     }
     await Promise.all(jobs);
     bustOk = true;
+    // إطارات العينين المغمضتين اختيارية (للرمش): presenter/b00..b11.webp
+    const cl = [];
+    for (let i = 0; i < BUST_N; i++) {
+      cl.push(new Promise((res, rej) => {
+        const im = new Image();
+        im.onload = () => { bustImgs.c[i] = im; res(); };
+        im.onerror = () => rej(new Error('no blink'));
+        im.src = `presenter/b${String(i).padStart(2, '0')}.webp`;
+      }));
+    }
+    try { await Promise.all(cl); } catch { bustImgs.c = []; }
   } catch { bustOk = false; }
   return bustOk;
 })();
@@ -182,7 +193,7 @@ function bustFrame(sc, level, t) {
 
 function drawBust(sc, ctx, c, h, level, t, bottom) {
   const f = bustFrame(sc, level, t);
-  const blink = (t % 3.6) < 0.16 || ((t + 1.7) % 7.3) < 0.14;
+  const blink = bustImgs.c.length === BUST_N && ((t % 3.6) < 0.16 || ((t + 1.7) % 7.3) < 0.14);
   const im = bustImgs[blink ? 'c' : 'o'][f];
   const w = h * BUST_W / BUST_H;
   const cx = c.x + c.w / 2;
