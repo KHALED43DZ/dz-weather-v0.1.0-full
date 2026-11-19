@@ -52,13 +52,16 @@ function download(blob, name) {
 }
 
 const curRec = () => (S.cur ? S.recs.get(S.cur.iso) : null);
+// عبارات «توقعات الغد» على الفيديو وفي النص
+const targetWord = (i) => (i.offset === 1 ? 'نهار الغد' : i.offset === 2 ? 'نهار بعد غد' : `يوم ${i.dow}`);
+const titleOf = (i) => (i.offset === 1 ? 'توقعات الغد' : i.offset === 2 ? 'توقعات بعد غد' : 'توقعات') + ` · ${i.dow} ${i.short}`;
 const extOf = (mime) => (/mp4/.test(mime) ? 'mp4' : 'webm');
 
 /* ───────── الصفحة الرئيسية ───────── */
 function renderDays() {
   const box = $('days');
   box.innerHTML = '';
-  for (let i = 0; i < 7; i++) {
+  for (let i = 1; i <= 7; i++) { // من الغد إلى اكتمال أسبوع
     const info = dayInfo(i);
     const rec = S.recs.get(info.iso);
     const { stage, audio, total } = stageOf(rec);
@@ -171,7 +174,7 @@ function drawIdle(t) {
     item: first ? { ...first, progress: 0.05 } : null,
     captionText: first ? '' : `اضغط «أنشئ كل شيء» لتوليد نشرة ${info.label === info.dow ? info.dow : info.label} (${info.short}).`,
     headline: (rec && rec.script && rec.script.headline) || 'نشرة الطقس في الجزائر',
-    dateFull: info.full, snap, summary: snap ? summarize(snap) : null, presenter: S.settings.presenter || 'عمي الطقس',
+    dateFull: titleOf(info), snap, summary: snap ? summarize(snap) : null, presenter: S.settings.presenter || 'عمي الطقس',
   });
 }
 
@@ -270,7 +273,16 @@ async function stepText(signal) {
   const { raw, idx } = await rawFor(info, signal);
   const snap = daySnapshot(raw, idx);
   const summary = summarize(snap);
-  const { system, user } = buildPrompt({ dateFull: info.full, summary, length: st.length, presenter: st.presenter || 'عمي الطقس' });
+  // لمحة عن اليوم السابق للنشرة (اليوم نفسه إن كانت نشرة الغد) تفتتح بها المقدمة
+  const prev = dayInfo(info.offset - 1);
+  const pIdx = raw[0].daily.time.indexOf(prev.iso);
+  const recap = pIdx >= 0
+    ? { word: info.offset === 1 ? 'اليوم' : `يوم ${prev.dow}`, summary: summarize(daySnapshot(raw, pIdx)) }
+    : null;
+  const { system, user } = buildPrompt({
+    dateFull: info.full, summary, length: st.length, presenter: st.presenter || 'عمي الطقس',
+    target: { word: targetWord(info) }, recap,
+  });
   const models = [st.customAnalysis.trim() || st.analysisModel, st.analysisFallback];
   let script = null, res = null, lastErr = null;
   for (let attempt = 0; attempt < 2 && !script; attempt++) {
@@ -339,7 +351,7 @@ async function stepVideo(signal) {
   setStatus('تجهيز الصوت والمشهد…'); setProgress(0);
   S.playing = true; refreshDetail();
   try {
-    const tl = await S.player.prepare({ rec, dayFull: S.cur.full, presenter: S.settings.presenter || 'عمي الطقس' });
+    const tl = await S.player.prepare({ rec, dayFull: titleOf(S.cur), presenter: S.settings.presenter || 'عمي الطقس' });
     const out = await S.player.play({
       record: true, signal,
       onProgress: (f, t) => { setProgress(f); setStatus(`⏺ تسجيل الفيديو ${ltr(fmtDur(t) + ' / ' + fmtDur(tl.total))} — أبقِ الشاشة مفتوحة ولا تغادر الصفحة`); },
@@ -434,7 +446,7 @@ async function previewPlay() {
   setScene();
   S.playing = true; S.busy = false; refreshDetail();
   try {
-    const tl = await S.player.prepare({ rec, dayFull: S.cur.full, presenter: S.settings.presenter || 'عمي الطقس' });
+    const tl = await S.player.prepare({ rec, dayFull: titleOf(S.cur), presenter: S.settings.presenter || 'عمي الطقس' });
     setStatus('▶ معاينة…');
     await S.player.play({ record: false, onProgress: (f, t) => { setProgress(f); $('status').textContent = `▶ معاينة ${ltr(fmtDur(t) + ' / ' + fmtDur(tl.total))}`; } });
     setStatus('انتهت المعاينة'); setProgress(0);

@@ -144,6 +144,7 @@ export function drawIcon(ctx, cat, x, y, r, t) {
 // ===== المعلق بالصور: 12 شكل فم × (عينان مفتوحتان / مغمضتان) =====
 const BUST_N = 12, BUST_W = 300, BUST_H = 280;
 const bustImgs = { o: [], c: [] };
+const BLINK_FRAMES = false; // اجعلها true بعد إضافة presenter/b00..b11.webp (العينان مغمضتان)
 let bustOk = false;
 export const bustReady = (async () => {
   if (typeof Image === 'undefined') return false;
@@ -161,7 +162,7 @@ export const bustReady = (async () => {
     bustOk = true;
     // إطارات العينين المغمضتين اختيارية (للرمش): presenter/b00..b11.webp
     const cl = [];
-    for (let i = 0; i < BUST_N; i++) {
+    for (let i = 0; BLINK_FRAMES && i < BUST_N; i++) {
       cl.push(new Promise((res, rej) => {
         const im = new Image();
         im.onload = () => { bustImgs.c[i] = im; res(); };

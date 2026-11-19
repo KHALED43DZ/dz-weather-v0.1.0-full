@@ -7,7 +7,7 @@ export const LENGTHS = {
   full: { label: 'كاملة (3 إلى 4 دقائق)', segments: 10, words: '430 إلى 560' },
 };
 
-export function buildPrompt({ dateFull, summary, length, presenter }) {
+export function buildPrompt({ dateFull, summary, length, presenter, target, recap }) {
   const L = LENGTHS[length] || LENGTHS.normal;
   const system = [
     `أنت «${presenter}»، مذيع نشرة طقس جزائري ظريف وخفيف الدم، تتكلم بالدارجة الجزائرية (مكتوبة بالحروف العربية) كأنك تحكي مع أولاد الحومة، لكن بأدب واحترام.`,
@@ -21,9 +21,15 @@ export function buildPrompt({ dateFull, summary, length, presenter }) {
     '7) أخرج JSON صالحاً فقط، بلا شرح ولا علامات ```.',
   ].join('\n');
 
+  const natLine = (n) =>
+    `الأسخن ${n.hottest.ar} (${n.hottest.tx}) — الأبرد ليلاً ${n.coldest.ar} (${n.coldest.tn}) — متوسط العظمى ${n.avgTx} والصغرى ${n.avgTn} — ` +
+    (n.rainy.length ? 'أمطار في: ' + n.rainy.map((x) => `${x.ar} ${x.pr}`).join('، ') : 'لا أمطار تُذكر') +
+    ` — أقوى هبّات ريح ${n.windiest.ar} (${n.windiest.gu})`;
   const n = summary.national;
+  const tw = (target && target.word) || 'اليوم';
   const lines = [];
   lines.push(`التاريخ: ${dateFull}`);
+  lines.push(`النشرة تُبثّ مساءً وتخص توقعات ${tw}. كل المقاطع الإقليمية والخاتمة عن ${tw} فقط.`);
   lines.push(`المطلوب: نشرة ${L.label}: مقدمة + ${L.segments} مقاطع إقليمية + خاتمة، مجموع الكلمات ${L.words} كلمة تقريباً.`);
   if (L.segments < 10) {
     lines.push(`اختر ${L.segments} مناطق من القائمة (الأهم: أمطار أو ثلوج أو حرارة قصوى أو برد أو رياح قوية)، وما لم تذكره لخّصه في المقدمة بجملة.`);
@@ -32,11 +38,8 @@ export function buildPrompt({ dateFull, summary, length, presenter }) {
   }
   lines.push('');
   lines.push('المعطيات (حرارة مئوية، مطر بالملم، رياح كم/س):');
-  lines.push(
-    `وطنياً: الأسخن ${n.hottest.ar} (${n.hottest.tx}) — الأبرد ليلاً ${n.coldest.ar} (${n.coldest.tn}) — متوسط العظمى ${n.avgTx} والصغرى ${n.avgTn} — ` +
-      (n.rainy.length ? 'أمطار في: ' + n.rainy.map((x) => `${x.ar} ${x.pr}`).join('، ') : 'لا أمطار تُذكر') +
-      ` — أقوى هبّات ريح ${n.windiest.ar} (${n.windiest.gu})`
-  );
+  if (recap) lines.push(`لمحة عن ${recap.word} (للافتتاح فقط): ${natLine(recap.summary.national)}`);
+  lines.push(`وطنياً (${tw}): ${natLine(n)}`);
   for (const r of Object.values(summary.regions)) {
     if (!r.members.length) continue;
     lines.push(
@@ -53,7 +56,12 @@ export function buildPrompt({ dateFull, summary, length, presenter }) {
   lines.push('{"headline":"عنوان قصير من ثلاث إلى ست كلمات يظهر على الفيديو","intro":"نص المقدمة",');
   lines.push(' "segments":[{"region":"معرّف المنطقة من القائمة","spotlight":[رموز 2 إلى 4 ولايات من نفس المنطقة تستحق الإبراز],"text":"نص المقطع"}],');
   lines.push(' "outro":"نص الخاتمة"}');
-  lines.push('المقدمة: تحية مرحة باسمك وتاريخ اليوم وصورة عامة عن الجو في البلاد. الخاتمة: وداع ظريف مع نصيحة قصيرة.');
+  if (recap) {
+    lines.push(`المقدمة: تحية مسائية مرحة باسمك، ثم لمحة قصيرة جداً (جملتان إلى ثلاث) عن ${recap.word} بصيغة الماضي القريب اعتماداً على «لمحة عن ${recap.word}» فقط، ثم جملة ربط ظريفة تنتقل بها إلى توقعات ${tw} مع صورة عامة عن الجو في البلاد. لا تخلط أرقام ${recap.word} بأرقام ${tw}.`);
+  } else {
+    lines.push(`المقدمة: تحية مسائية مرحة باسمك، ثم صورة عامة عن توقعات ${tw}.`);
+  }
+  lines.push('الخاتمة: وداع ظريف مع نصيحة قصيرة.');
   return { system, user: lines.join('\n') };
 }
 

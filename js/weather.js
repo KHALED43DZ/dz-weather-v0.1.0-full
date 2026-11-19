@@ -47,7 +47,7 @@ export async function fetchForecast(signal, { force = false } = {}) {
   const cached = getForecastCache();
   if (!force && cached && Date.now() - cached.t < MAX_AGE) return cached.data;
   const url = `${API}?latitude=${WILAYAS.map((w) => w.lat).join(',')}&longitude=${WILAYAS.map((w) => w.lon).join(',')}` +
-    `&daily=${DAILY}&timezone=Africa%2FAlgiers&forecast_days=7`;
+    `&daily=${DAILY}&timezone=Africa%2FAlgiers&forecast_days=8`;
   try {
     const res = await fetch(url, { signal });
     if (!res.ok) throw new Error('Open-Meteo HTTP ' + res.status);
