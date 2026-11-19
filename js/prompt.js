@@ -7,7 +7,7 @@ export const LENGTHS = {
   full: { label: 'كاملة (3 إلى 4 دقائق)', segments: 10, words: '430 إلى 560' },
 };
 
-export function buildPrompt({ dateFull, summary, length, presenter, target, recap }) {
+export function buildPrompt({ summary, length, presenter, bday, tday, recap }) {
   const L = LENGTHS[length] || LENGTHS.normal;
   const system = [
     `أنت «${presenter}»، مذيع نشرة طقس جزائري ظريف وخفيف الدم، تتكلم بالدارجة الجزائرية (مكتوبة بالحروف العربية) كأنك تحكي مع أولاد الحومة، لكن بأدب واحترام.`,
@@ -19,6 +19,9 @@ export function buildPrompt({ dateFull, summary, length, presenter, target, reca
     '5) لا تذكر «الشهيلي» إلا إذا كانت الحرارة العظمى 38 فأكثر في ولايات الشمال.',
     '6) جمل قصيرة سهلة النطق، وكل مقطع مستقل يُفهم وحده.',
     '7) أخرج JSON صالحاً فقط، بلا شرح ولا علامات ```.',
+    '8) النشرة تُبثّ مساءً. التزم بالتواريخ والأيام المعطاة بالضبط: «اليوم» هو يوم البث، و«الغد» هو يوم التوقعات. ممنوع ذكر أي يوم آخر بالاسم، وممنوع قول «بعد غد».',
+    '9) أدرج العبارات المألوفة في نشرات الأحوال الجوية العربية بنكهة الدارجة، مثل: «غداً بحول الله»، «أمطار إن شاء الله»، «تكون السماء غائمة جزئياً»، «ترتفع درجات الحرارة»، «تتراوح الحرارة بين … و…»، «رياح نشطة»، «نوصي بالحذر على الطرقات»، «وفق ما تشير إليه التوقعات». التوقعات احتمال لا يقين، فاقرنها بـ«بحول الله» أو «إن شاء الله».',
+    '10) اختم الخاتمة دائماً بعبارة «والله أعلم».',
   ].join('\n');
 
   const natLine = (n) =>
@@ -26,10 +29,11 @@ export function buildPrompt({ dateFull, summary, length, presenter, target, reca
     (n.rainy.length ? 'أمطار في: ' + n.rainy.map((x) => `${x.ar} ${x.pr}`).join('، ') : 'لا أمطار تُذكر') +
     ` — أقوى هبّات ريح ${n.windiest.ar} (${n.windiest.gu})`;
   const n = summary.national;
-  const tw = (target && target.word) || 'اليوم';
+  const tw = `غداً ${tday.dow}`;
   const lines = [];
-  lines.push(`التاريخ: ${dateFull}`);
-  lines.push(`النشرة تُبثّ مساءً وتخص توقعات ${tw}. كل المقاطع الإقليمية والخاتمة عن ${tw} فقط.`);
+  lines.push(`تاريخ البث (هذا المساء): اليوم ${bday.full}.`);
+  lines.push(`يوم التوقعات: غداً ${tday.full}. كل المقاطع الإقليمية والخاتمة عن توقعات غداً ${tday.dow} فقط.`);
+  lines.push(`لا تذكر من أسماء الأيام إلا «${bday.dow}» (اليوم) و«${tday.dow}» (الغد).`);
   lines.push(`المطلوب: نشرة ${L.label}: مقدمة + ${L.segments} مقاطع إقليمية + خاتمة، مجموع الكلمات ${L.words} كلمة تقريباً.`);
   if (L.segments < 10) {
     lines.push(`اختر ${L.segments} مناطق من القائمة (الأهم: أمطار أو ثلوج أو حرارة قصوى أو برد أو رياح قوية)، وما لم تذكره لخّصه في المقدمة بجملة.`);
@@ -38,8 +42,8 @@ export function buildPrompt({ dateFull, summary, length, presenter, target, reca
   }
   lines.push('');
   lines.push('المعطيات (حرارة مئوية، مطر بالملم، رياح كم/س):');
-  if (recap) lines.push(`لمحة عن ${recap.word} (للافتتاح فقط): ${natLine(recap.summary.national)}`);
-  lines.push(`وطنياً (${tw}): ${natLine(n)}`);
+  if (recap) lines.push(`لمحة عن اليوم ${bday.dow} (للافتتاح فقط): ${natLine(recap.summary.national)}`);
+  lines.push(`وطنياً (توقعات ${tw}): ${natLine(n)}`);
   for (const r of Object.values(summary.regions)) {
     if (!r.members.length) continue;
     lines.push(
@@ -57,11 +61,11 @@ export function buildPrompt({ dateFull, summary, length, presenter, target, reca
   lines.push(' "segments":[{"region":"معرّف المنطقة من القائمة","spotlight":[رموز 2 إلى 4 ولايات من نفس المنطقة تستحق الإبراز],"text":"نص المقطع"}],');
   lines.push(' "outro":"نص الخاتمة"}');
   if (recap) {
-    lines.push(`المقدمة: تحية مسائية مرحة باسمك، ثم لمحة قصيرة جداً (جملتان إلى ثلاث) عن ${recap.word} بصيغة الماضي القريب اعتماداً على «لمحة عن ${recap.word}» فقط، ثم جملة ربط ظريفة تنتقل بها إلى توقعات ${tw} مع صورة عامة عن الجو في البلاد. لا تخلط أرقام ${recap.word} بأرقام ${tw}.`);
+    lines.push(`المقدمة: تحية مسائية مرحة باسمك، ثم لمحة قصيرة جداً (جملتان إلى ثلاث) عن أحداث طقس اليوم ${bday.dow} بصيغة الماضي القريب اعتماداً على «لمحة عن اليوم» فقط، ثم جملة ربط ظريفة تنتقل بها إلى توقعات ${tw} («غداً بحول الله…») مع صورة عامة عن الجو في البلاد. لا تخلط أرقام اليوم بأرقام الغد.`);
   } else {
-    lines.push(`المقدمة: تحية مسائية مرحة باسمك، ثم صورة عامة عن توقعات ${tw}.`);
+    lines.push(`المقدمة: تحية مسائية مرحة باسمك، ثم صورة عامة عن توقعات ${tw} («غداً بحول الله…»).`);
   }
-  lines.push('الخاتمة: وداع ظريف مع نصيحة قصيرة.');
+  lines.push('الخاتمة: وداع ظريف مع نصيحة قصيرة، وتنتهي بعبارة «والله أعلم».');
   return { system, user: lines.join('\n') };
 }
 
@@ -93,5 +97,7 @@ export function parseScript(raw, summary) {
   if (!segs.length) throw new Error('لم يُرجع النموذج أي مقطع إقليمي صالح — أعد المحاولة');
   const intro = clean(j.intro), outro = clean(j.outro);
   if (!intro) throw new Error('المقدمة ناقصة في ردّ النموذج — أعد المحاولة');
-  return { headline: clean(j.headline).slice(0, 60), intro, segments: segs, outro: outro || 'بالسلامة يا أحبابي، ونلتقو في نشرة أخرى إن شاء الله.' };
+  let out = outro || 'بالسلامة يا أحبابي، ونلتقو في نشرة أخرى إن شاء الله.';
+  if (!/والله أعلم/.test(out)) out = out.replace(/[.!؟،\s]+$/, '') + '، والله أعلم.';
+  return { headline: clean(j.headline).slice(0, 60), intro, segments: segs, outro: out };
 }

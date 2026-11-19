@@ -53,7 +53,6 @@ function download(blob, name) {
 
 const curRec = () => (S.cur ? S.recs.get(S.cur.iso) : null);
 // عبارات «توقعات الغد» على الفيديو وفي النص
-const targetWord = (i) => (i.offset === 1 ? 'نهار الغد' : i.offset === 2 ? 'نهار بعد غد' : `يوم ${i.dow}`);
 const titleOf = (i) => (i.offset === 1 ? 'توقعات الغد' : i.offset === 2 ? 'توقعات بعد غد' : 'توقعات') + ` · ${i.dow} ${i.short}`;
 const extOf = (mime) => (/mp4/.test(mime) ? 'mp4' : 'webm');
 
@@ -276,12 +275,10 @@ async function stepText(signal) {
   // لمحة عن اليوم السابق للنشرة (اليوم نفسه إن كانت نشرة الغد) تفتتح بها المقدمة
   const prev = dayInfo(info.offset - 1);
   const pIdx = raw[0].daily.time.indexOf(prev.iso);
-  const recap = pIdx >= 0
-    ? { word: info.offset === 1 ? 'اليوم' : `يوم ${prev.dow}`, summary: summarize(daySnapshot(raw, pIdx)) }
-    : null;
+  const recap = pIdx >= 0 ? { summary: summarize(daySnapshot(raw, pIdx)) } : null;
   const { system, user } = buildPrompt({
-    dateFull: info.full, summary, length: st.length, presenter: st.presenter || 'عمي الطقس',
-    target: { word: targetWord(info) }, recap,
+    summary, length: st.length, presenter: st.presenter || 'عمي الطقس',
+    bday: prev, tday: info, recap,
   });
   const models = [st.customAnalysis.trim() || st.analysisModel, st.analysisFallback];
   let script = null, res = null, lastErr = null;
