@@ -1,6 +1,6 @@
 // Service Worker — يخزّن ملفات التطبيق ليعمل دون اتصال.
 // غيّر VERSION مع كل إصدار (نفس الرقم في js/config.js)
-const VERSION = '0.3.2';
+const VERSION = '0.4.0';
 const CACHE = 'dzweather-' + VERSION;
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
